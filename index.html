@@ -17,6 +17,7 @@
     doc,
     getDoc,
     setDoc,
+    deleteDoc,
     collection,
     onSnapshot,
     serverTimestamp,
@@ -40,7 +41,7 @@
   const db = getFirestore(app);
 
   window._db = db;
-  window._fs = { doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp, query, where, getDocs };
+  window._fs = { doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, where, getDocs };
   window._firebaseReady = true;
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
@@ -201,7 +202,10 @@
   </div>
 
   <div class="card resultado" id="resultado">
-    <div class="ya-confirmado" id="yaConfirmado" style="display:none;">✅ Este equipo ya había sido confirmado antes.</div>
+    <div class="ya-confirmado" id="yaConfirmado" style="display:none; justify-content:space-between;">
+      <span>✅ Este equipo ya había sido confirmado antes.</span>
+      <button type="button" class="btn" id="btnQuitarConfirmacion" style="border-color:var(--danger); color:var(--danger); flex-shrink:0;">🗑 Quitar confirmación</button>
+    </div>
 
     <div class="equipo-head">
       <img id="resFlag" src="" alt="">
@@ -236,6 +240,7 @@
   const resultado     = document.getElementById('resultado');
   const yaConfirmado  = document.getElementById('yaConfirmado');
   const btnConfirmar  = document.getElementById('btnConfirmar');
+  const btnQuitarConfirmacion = document.getElementById('btnQuitarConfirmacion');
   const contadorTexto = document.getElementById('contadorTexto');
   const listaConfirmados = document.getElementById('listaConfirmados');
 
@@ -364,12 +369,36 @@
     }
   }
 
+  async function quitarConfirmacion(){
+    if(!equipoActual) return;
+    const { datos } = equipoActual;
+    const ok = confirm(`¿Seguro que quieres quitar la confirmación de ${datos.pais}? Va a desaparecer de la página de llaves. Su código seguirá funcionando por si lo quieren confirmar de nuevo.`);
+    if(!ok) return;
+
+    btnQuitarConfirmacion.disabled = true;
+    btnQuitarConfirmacion.textContent = 'Quitando…';
+
+    try{
+      const { doc, deleteDoc } = window._fs;
+      await deleteDoc(doc(window._db, 'equipos_confirmados', datos.paisCodigo));
+      mostrarMensaje(`🗑️ Se quitó la confirmación de ${datos.pais}. Ya no aparece en la página de llaves.`, 'warn');
+      yaConfirmado.style.display = 'none';
+    }catch(err){
+      console.error(err);
+      mostrarMensaje('❌ Error al quitar la confirmación: ' + err.message, 'err');
+    }finally{
+      btnQuitarConfirmacion.disabled = false;
+      btnQuitarConfirmacion.textContent = '🗑 Quitar confirmación';
+    }
+  }
+
   btnBuscar.addEventListener('click', buscarEquipo);
   inputCodigo.addEventListener('keydown', e => { if(e.key === 'Enter') buscarEquipo(); });
   inputCodigo.addEventListener('input', () => {
     inputCodigo.value = inputCodigo.value.replace(/\D/g, '').slice(0,5);
   });
   btnConfirmar.addEventListener('click', confirmarEquipo);
+  btnQuitarConfirmacion.addEventListener('click', quitarConfirmacion);
 
   function iniciarListaConfirmados(){
     const { collection, onSnapshot } = window._fs;
