@@ -19,7 +19,10 @@
     setDoc,
     collection,
     onSnapshot,
-    serverTimestamp
+    serverTimestamp,
+    query,
+    where,
+    getDocs
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   // ⚠️ Debe ser EXACTAMENTE la misma configuración que usaste en tu
@@ -37,7 +40,7 @@
   const db = getFirestore(app);
 
   window._db = db;
-  window._fs = { doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp };
+  window._fs = { doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp, query, where, getDocs };
   window._firebaseReady = true;
   window.dispatchEvent(new Event("firebase-ready"));
 </script>
@@ -267,19 +270,37 @@
     btnBuscar.textContent = 'Buscando…';
 
     try{
-      const { doc, getDoc } = window._fs;
+      const { doc, getDoc, collection, query, where, getDocs } = window._fs;
+
+      let datosEncontrados = null;
+      let refEncontrada = null;
+
+      // 1) Intento directo: el código es el ID del documento (registros nuevos)
       const ref = doc(window._db, 'equipos', codigo);
       const snap = await getDoc(ref);
+      if(snap.exists()){
+        datosEncontrados = snap.data();
+        refEncontrada = ref;
+      } else {
+        // 2) Alternativa: buscar por el campo "codigo" (registros hechos con
+        //    la versión anterior de la página, que usaba un ID al azar)
+        const q = query(collection(window._db, 'equipos'), where('codigo', '==', codigo));
+        const res = await getDocs(q);
+        if(!res.empty){
+          datosEncontrados = res.docs[0].data();
+          refEncontrada = res.docs[0].ref;
+        }
+      }
 
-      if(!snap.exists()){
+      if(!datosEncontrados){
         mostrarMensaje('❌ No encontramos ningún equipo con ese código.', 'err');
         btnBuscar.disabled = false;
         btnBuscar.textContent = 'Buscar';
         return;
       }
 
-      const datos = snap.data();
-      equipoActual = { ref, datos, codigo };
+      const datos = datosEncontrados;
+      equipoActual = { ref: refEncontrada, datos, codigo };
 
       document.getElementById('resFlag').src = flagUrl(datos.paisCodigo);
       document.getElementById('resFlag').alt = datos.pais;
